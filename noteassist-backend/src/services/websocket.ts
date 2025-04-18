@@ -7,6 +7,16 @@ interface Client {
   ws: WebSocket;
 }
 
+interface NoteData {
+  userId: string;
+  [key: string]: any;
+}
+
+interface WebSocketMessage<T = any> {
+  type: string;
+  [key: string]: T;
+}
+
 class WebSocketService {
   private wss: WebSocketServer;
   private clients: Map<string, Client[]> = new Map();
@@ -20,11 +30,14 @@ class WebSocketService {
     this.wss.on('connection', (ws: WebSocket) => {
       let userId: string | null = null;
 
-      ws.on('message', async (message: string) => {
+      // FIX: Xác định kiểu dữ liệu cho message từ WebSocket
+      ws.on('message', async (messageBuffer: Buffer) => {
         try {
-          const data = JSON.parse(message);
+          // FIX: Chuyển Buffer thành string trước khi parse JSON
+          const messageString = messageBuffer.toString();
+          const data = JSON.parse(messageString) as WebSocketMessage;
 
-          if (data.type === 'auth') {
+          if (data.type === 'auth' && typeof data.userId === 'string') {
             userId = data.userId;
             this.addClient(userId, ws);
           }
@@ -48,7 +61,11 @@ class WebSocketService {
     if (!this.clients.has(userId)) {
       this.clients.set(userId, []);
     }
-    this.clients.get(userId)?.push({ userId, ws });
+    
+    const clientList = this.clients.get(userId);
+    if (clientList) {
+      clientList.push({ userId, ws });
+    }
   }
 
   private removeClient(userId: string, ws: WebSocket) {
@@ -68,17 +85,17 @@ class WebSocketService {
     // Listen for note changes
     db.collection('notes').onSnapshot((snapshot) => {
       snapshot.docChanges().forEach((change) => {
-        const note = change.doc.data();
-        const userId = note.userId;
-
-        if (userId) {
-          const userClients = this.clients.get(userId);
+        // FIX: Xác định kiểu dữ liệu cho note và thêm kiểm tra tồn tại
+        const noteData = change.doc.data() as NoteData | undefined;
+        
+        if (noteData && noteData.userId) {
+          const userClients = this.clients.get(noteData.userId);
           if (userClients) {
             const message = JSON.stringify({
               type: 'noteUpdate',
               action: change.type,
               noteId: change.doc.id,
-              data: note
+              data: noteData
             });
 
             userClients.forEach(client => {
@@ -106,4 +123,4 @@ class WebSocketService {
   }
 }
 
-export default WebSocketService; 
+export default WebSocketService;
