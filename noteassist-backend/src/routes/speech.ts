@@ -56,7 +56,12 @@ router.post('/transcribe', upload.single('audio'), async (req: Request, res: Res
     };
 
     // Perform the transcription
-    const [response] = await speech.recognize(request);
+
+    const [response] = await speech.recognize(request) as [
+      protos.google.cloud.speech.v1.IRecognizeResponse,
+      protos.google.cloud.speech.v1.IRecognizeRequest | undefined,
+      {} | undefined
+    ];
     
     // FIX: Thêm kiểm tra null/undefined trước khi truy cập
     const transcription = response.results
