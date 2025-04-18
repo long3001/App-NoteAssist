@@ -12,9 +12,10 @@ interface NoteData {
   [key: string]: any;
 }
 
-interface WebSocketMessage<T = any> {
+interface WebSocketMessage {
   type: string;
-  [key: string]: T;
+  userId?: string;
+  [key: string]: any;
 }
 
 class WebSocketService {
