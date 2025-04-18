@@ -1,6 +1,6 @@
 import express, { Request, Response } from 'express';
 import { Storage } from '@google-cloud/storage';
-import { SpeechClient } from '@google-cloud/speech';
+import { SpeechClient, protos } from '@google-cloud/speech'; // Thêm import protos
 import multer from 'multer';
 import path from 'path';
 import { db } from '../config/firebase';
@@ -42,22 +42,26 @@ router.post('/transcribe', upload.single('audio'), async (req: Request, res: Res
       content: req.file.buffer.toString('base64'),
     };
     
-    const config = {
-      encoding: 'LINEAR16',
+    // FIX: Sử dụng enum AudioEncoding thay vì string
+    const config: protos.google.cloud.speech.v1.IRecognitionConfig = {
+      encoding: protos.google.cloud.speech.v1.RecognitionConfig.AudioEncoding.LINEAR16,
       sampleRateHertz: 16000,
       languageCode: 'en-US',
     };
     
-    const request = {
+    // FIX: Định nghĩa request với kiểu IRecognizeRequest từ protos
+    const request: protos.google.cloud.speech.v1.IRecognizeRequest = {
       audio: audio,
       config: config,
     };
 
     // Perform the transcription
     const [response] = await speech.recognize(request);
+    
+    // FIX: Thêm kiểm tra null/undefined trước khi truy cập
     const transcription = response.results
-      .map(result => result.alternatives[0].transcript)
-      .join('\n');
+      ?.map(result => result?.alternatives?.[0]?.transcript || '')
+      .join('\n') || '';
 
     // Create a new note with the transcription
     const newNote = {
@@ -95,9 +99,12 @@ router.get('/status/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Transcription not found' });
     }
 
+    // FIX: Thêm kiểm tra kiểu và xử lý dữ liệu
+    const noteData = note.data();
+    
     res.json({
       id: note.id,
-      ...note.data()
+      ...(noteData || {})
     });
   } catch (error: any) {
     res.status(500).json({
@@ -107,4 +114,4 @@ router.get('/status/:id', async (req: Request, res: Response) => {
   }
 });
 
-export default router; 
+export default router;
